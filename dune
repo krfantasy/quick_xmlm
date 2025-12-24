@@ -1,0 +1,4 @@
+; Disable warnings as errors for compatibility with existing code
+(env
+ (dev
+  (flags (:standard -warn-error -A-4-27-32-35-39))))

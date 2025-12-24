@@ -1,0 +1,27 @@
+; Test suite - main tests
+(test
+ (name test)
+ (libraries xmlm))
+
+; Test tree output
+(test
+ (name test_tree)
+ (libraries xmlm))
+
+; Examples (also documentation)
+(test
+ (name examples)
+ (libraries xmlm))
+
+; XHTML entities test (also compiled into xmltrip)
+(test
+ (name xhtml)
+ (libraries xmlm))
+
+; Public executable xmltrip - compiles both xmltrip.ml and xhtml.ml
+(executable
+ (public_name xmltrip)
+ (name xmltrip)
+ (package xmlm)
+ (modules xmltrip xhtml)
+ (libraries xmlm))

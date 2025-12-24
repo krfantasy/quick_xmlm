@@ -3,7 +3,7 @@
    http://www.w3.org/\
    TR/xhtml-modularization/dtd_module_defs.html#a_xhtml_character_entities *)
 
-let entities = [
+let[@warning "-32"] entities = [
   ("nbsp", "\194\160");
   ("iexcl", "\194\161");
   ("cent", "\194\162");

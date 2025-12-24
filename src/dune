@@ -1,0 +1,6 @@
+(library
+ (name xmlm)
+ (public_name xmlm)
+ (synopsis "Streaming XML codec for OCaml")
+ (modules :standard)
+ (libraries))
