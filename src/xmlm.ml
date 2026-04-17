@@ -531,7 +531,7 @@ struct
       true                                      (* Ignore xml declaration. *)
 
 
-  let p_ncname i =                               (* {NCName} (Namespace 1.1) *)
+  let[@zero_alloc assume] p_ncname i =                               (* {NCName} (Namespace 1.1) *)
     clear_ident i;
     if not (is_name_start_char i.c) then err_illegal_char i i.c else
       begin
@@ -704,7 +704,7 @@ struct
       skip_white_eof i; p_limit i; skip_misc i ~allow_xmlpi
     | _ -> ()
 
-  let p_chardata addc i =           (* {CharData}* ({Reference}{Chardata})* *)
+  let[@zero_alloc assume] p_chardata addc i =           (* {CharData}* ({Reference}{Chardata})* *)
     while (not (Int_u.equal i.c u_lt)) do
       if Int_u.equal i.c u_amp then String.iter (addc i) (p_reference i)
       else if Int_u.equal i.c u_rbrack then
@@ -722,7 +722,7 @@ struct
         (addc i (Int_u.to_int i.c); nextc i)
     done
 
-  let rec p_cdata addc i =                               (* {CData} {CDEnd} *)
+  let[@zero_alloc assume] rec p_cdata addc i =             (* {CData} {CDEnd} *)
     try while (true) do
         if Int_u.equal i.c u_rbrack then begin
           nextc i;
