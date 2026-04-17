@@ -17,7 +17,7 @@ Xmlm is made of a single independent module and distributed under the ISC licens
  (documentation "https://erratique.ch/software/xmlm/doc/")
  (bug_reports "https://github.com/dbuenzli/xmlm/issues")
  (depends
-  (ocaml (>= 4.05.0)))
+  (ocaml (>= 5.2.0)))
  (tags
   (xml codec org:erratique)))
 

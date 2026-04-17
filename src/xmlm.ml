@@ -126,35 +126,35 @@ let utf8_len = [|        (* Char byte length according to first UTF-8 byte. *)
 let uchar_utf8 i =
   let b0 = i () in
   begin match utf8_len.(b0) with
-  | 0 -> raise Malformed
-  | 1 -> b0
-  | 2 ->
+    | 0 -> raise Malformed
+    | 1 -> b0
+    | 2 ->
       let b1 = i () in
       if b1 lsr 6 != 0b10 then raise Malformed else
-      ((b0 land 0x1F) lsl 6) lor (b1 land 0x3F)
-  | 3 ->
+        ((b0 land 0x1F) lsl 6) lor (b1 land 0x3F)
+    | 3 ->
       let b1 = i () in
       let b2 = i () in
       if b2 lsr 6 != 0b10 then raise Malformed else
-      begin match b0 with
-      | 0xE0 -> if b1 < 0xA0 || 0xBF < b1 then raise Malformed else ()
-      | 0xED -> if b1 < 0x80 || 0x9F < b1 then raise Malformed else ()
-      | _ -> if b1 lsr 6 != 0b10 then raise Malformed else ()
-      end;
+        begin match b0 with
+          | 0xE0 -> if b1 < 0xA0 || 0xBF < b1 then raise Malformed else ()
+          | 0xED -> if b1 < 0x80 || 0x9F < b1 then raise Malformed else ()
+          | _ -> if b1 lsr 6 != 0b10 then raise Malformed else ()
+        end;
       ((b0 land 0x0F) lsl 12) lor ((b1 land 0x3F) lsl 6) lor (b2 land 0x3F)
-  | 4 ->
+    | 4 ->
       let b1 = i () in
       let b2 = i () in
       let b3 = i () in
       if  b3 lsr 6 != 0b10 || b2 lsr 6 != 0b10 then raise Malformed else
-      begin match b0 with
-      | 0xF0 -> if b1 < 0x90 || 0xBF < b1 then raise Malformed else ()
-      | 0xF4 -> if b1 < 0x80 || 0x8F < b1 then raise Malformed else ()
-      | _ -> if b1 lsr 6 != 0b10 then raise Malformed else ()
-      end;
+        begin match b0 with
+          | 0xF0 -> if b1 < 0x90 || 0xBF < b1 then raise Malformed else ()
+          | 0xF4 -> if b1 < 0x80 || 0x8F < b1 then raise Malformed else ()
+          | _ -> if b1 lsr 6 != 0b10 then raise Malformed else ()
+        end;
       ((b0 land 0x07) lsl 18) lor ((b1 land 0x3F) lsl 12) lor
       ((b2 land 0x3F) lsl 6) lor (b3 land 0x3F)
-  | _ -> assert false
+    | _ -> assert false
   end
 
 let int16_be i =
@@ -171,8 +171,8 @@ let uchar_utf16 int16 i =
   let c0 = int16 i in
   if c0 < 0xD800 || c0 > 0xDFFF then c0 else
   if c0 > 0xDBFF then raise Malformed else
-  let c1 = int16 i in
-  (((c0 land 0x3FF) lsl 10) lor (c1 land 0x3FF)) + 0x10000
+    let c1 = int16 i in
+    (((c0 land 0x3FF) lsl 10) lor (c1 land 0x3FF)) + 0x10000
 
 let uchar_utf16be = uchar_utf16 int16_be
 let uchar_utf16le = uchar_utf16 int16_le
@@ -309,14 +309,14 @@ struct
     | `Unknown_ns_prefix e -> bracket "unknown namespace prefix (" e ")"
     | `Illegal_char_ref s -> bracket "illegal character reference (#" s ")"
     | `Illegal_char_seq s ->
-        bracket "character sequence illegal here (\"" s "\")"
+      bracket "character sequence illegal here (\"" s "\")"
     | `Expected_char_seqs (exps, fnd) ->
-        let exps =
-          let exp acc v = cat acc (bracket "\"" v "\", ") in
-          List.fold_left exp String.empty exps
-        in
-        cat (str "expected one of these character sequence: ")
-          (cat exps (bracket "found \"" fnd "\""))
+      let exps =
+        let exp acc v = cat acc (bracket "\"" v "\", ") in
+        List.fold_left exp String.empty exps
+      in
+      cat (str "expected one of these character sequence: ")
+        (cat exps (bracket "found \"" fnd "\""))
 
   type limit =                                       (* XML is odd to parse. *)
     | Stag of name   (* '<' qname *)
@@ -349,14 +349,14 @@ struct
       mutable stripping : bool;             (* True if stripping whitespace. *)
       mutable last_white : bool;             (* True if last char was white. *)
       mutable scopes : (name * string list * bool) list;
-         (* Stack of qualified el. name, bound prefixes and strip behaviour. *)
+      (* Stack of qualified el. name, bound prefixes and strip behaviour. *)
       ns : string Ht.t;                           (* prefix -> uri bindings. *)
       ident : Buffer.t;                 (* Buffer for names and entity refs. *)
       data : Buffer.t; }         (* Buffer for character and attribute data. *)
 
   let err_input_tree = "input signal not `El_start or `Data"
   let err_input_doc_tree = "input signal not `Dtd"
-  let err i e = raise (Error ((i.line, i.col), e))
+  let[@cold][@zero_alloc assume error] err i e = raise (Error ((i.line, i.col), e))
   let err_illegal_char i u = err i (`Illegal_char_seq (str_of_char u))
   let err_expected_seqs i exps s = err i (`Expected_char_seqs (exps, s))
   let err_expected_chars i exps =
@@ -370,15 +370,15 @@ struct
   let make_input ?(enc = None) ?(strip = false) ?(ns = fun _ -> None)
       ?(entity = fun _ -> None) src =
     let i = match src with
-    | `Fun f -> f
-    | `Channel ic -> fun () -> input_byte ic
-    | `String (pos, s) ->
+      | `Fun f -> f
+      | `Channel ic -> fun () -> input_byte ic
+      | `String (pos, s) ->
         let len = Std_string.length s in
         let pos = ref (pos - 1) in
         fun () ->
           incr pos;
           if !pos = len then raise End_of_file else
-          Char.code (Std_string.get s !pos)
+            Char.code (Std_string.get s !pos)
     in
     let bindings =
       let h = Ht.create 15 in
@@ -399,10 +399,10 @@ struct
   let is_white = function 0x0020 | 0x0009 | 0x000D | 0x000A -> true | _ -> false
 
   let is_char = function                                           (* {Char} *)
-  | u when r u 0x0020 0xD7FF -> true
-  | 0x0009 | 0x000A | 0x000D -> true
-  | u when r u 0xE000 0xFFFD || r u 0x10000 0x10FFFF -> true
-  | _ -> false
+    | u when r u 0x0020 0xD7FF -> true
+    | 0x0009 | 0x000A | 0x000D -> true
+    | u when r u 0xE000 0xFFFD || r u 0x10000 0x10FFFF -> true
+    | _ -> false
 
   let is_digit u = r u 0x0030 0x0039
   let is_hex_digit u =
@@ -415,33 +415,33 @@ struct
     r u 0xF900 0xFDCF || r u 0xFDF0 0xFFFD || r u 0x10000 0xEFFFF
 
   let is_name_start_char = function       (* {NameStartChar} - ':' (XML 1.1) *)
-  | u when r u 0x0061 0x007A || r u 0x0041 0x005A -> true   (* [a-z] | [A-Z] *)
-  | u when is_white u -> false
-  | 0x005F -> true                                                    (* '_' *)
-  | u when comm_range u -> true
-  | _ -> false
+    | u when r u 0x0061 0x007A || r u 0x0041 0x005A -> true   (* [a-z] | [A-Z] *)
+    | u when is_white u -> false
+    | 0x005F -> true                                                    (* '_' *)
+    | u when comm_range u -> true
+    | _ -> false
 
   let is_name_char = function                  (* {NameChar} - ':' (XML 1.1) *)
-  | u when r u 0x0061 0x007A || r u 0x0041 0x005A -> true   (* [a-z] | [A-Z] *)
-  | u when is_white u -> false
-  | u when  r u 0x0030 0x0039 -> true                               (* [0-9] *)
-  | 0x005F | 0x002D | 0x002E | 0x00B7 -> true                 (* '_' '-' '.' *)
-  | u when comm_range u || r u 0x0300 0x036F || r u 0x203F 0x2040 -> true
-  | _ -> false
+    | u when r u 0x0061 0x007A || r u 0x0041 0x005A -> true   (* [a-z] | [A-Z] *)
+    | u when is_white u -> false
+    | u when  r u 0x0030 0x0039 -> true                               (* [0-9] *)
+    | 0x005F | 0x002D | 0x002E | 0x00B7 -> true                 (* '_' '-' '.' *)
+    | u when comm_range u || r u 0x0300 0x036F || r u 0x203F 0x2040 -> true
+    | _ -> false
 
-  let rec nextc i =
+  let[@zero_alloc opt] rec nextc i =
     if i.c = u_eoi then err i `Unexpected_eoi;
     if i.c = u_nl then (i.line <- i.line + 1; i.col <- 1)
     else i.col <- i.col + 1;
-    i.c <- i.uchar i.i;
+    i.c <- (i.uchar [@zero_alloc assume]) i.i;
     if not (is_char i.c) then raise Malformed;
-    if i.cr && i.c = u_nl then i.c <- i.uchar i.i;       (* cr nl business *)
+    if i.cr && i.c = u_nl then i.c <- (i.uchar [@zero_alloc assume]) i.i;
     if i.c = u_cr then (i.cr <- true; i.c <- u_nl) else i.cr <- false
 
   let nextc_eof i = try nextc i with End_of_file -> i.c <- u_eoi
-  let skip_white i = while (is_white i.c) do nextc i done
+  let[@zero_alloc opt] skip_white i = while (is_white i.c) do nextc i done
   let skip_white_eof i = while (is_white i.c) do nextc_eof i done
-  let accept i c = if i.c = c then nextc i else err_expected_chars i [ c ]
+  let[@zero_alloc opt] accept i c = if i.c = c then nextc i else err_expected_chars i [ c ]
 
   let clear_ident i = Buffer.clear i.ident
   let clear_data i = Buffer.clear i.data
@@ -450,77 +450,77 @@ struct
 
   let addc_data_strip i c =
     if is_white c then i.last_white <- true else
-    begin
-      if i.last_white && Buffer.length i.data <> 0 then addc_data i u_space;
-      i.last_white <- false;
-      addc_data i c
-    end
+      begin
+        if i.last_white && Buffer.length i.data <> 0 then addc_data i u_space;
+        i.last_white <- false;
+        addc_data i c
+      end
 
   let expand_name i (prefix, local) =
     let external_ prefix = match i.fun_ns prefix with
-    | None -> err i (`Unknown_ns_prefix prefix)
-    | Some uri -> uri
+      | None -> err i (`Unknown_ns_prefix prefix)
+      | Some uri -> uri
     in
     try
       let uri = Ht.find i.ns prefix in
       if not (str_empty uri) then (uri, local) else
       if str_empty prefix then String.empty, local else
-      (external_ prefix), local              (* unbound with xmlns:prefix="" *)
+        (external_ prefix), local              (* unbound with xmlns:prefix="" *)
     with Not_found -> external_ prefix, local
 
   let find_encoding i =                                    (* Encoding mess. *)
     let reset uchar i = i.uchar <- uchar; i.col <- 0; nextc i in
     match i.enc with
     | None ->                                 (* User doesn't know encoding. *)
-        begin match nextc i; i.c with
+      begin match nextc i; i.c with
         | 0xFE ->                                           (* UTF-16BE BOM. *)
-            nextc i; if i.c <> 0xFF then err i `Malformed_char_stream;
-            reset uchar_utf16be i;
-            true
+          nextc i; if i.c <> 0xFF then err i `Malformed_char_stream;
+          reset uchar_utf16be i;
+          true
         | 0xFF ->                                           (* UTF-16LE BOM. *)
-            nextc i; if i.c <> 0xFE then err i `Malformed_char_stream;
-            reset uchar_utf16le i;
-            true
+          nextc i; if i.c <> 0xFE then err i `Malformed_char_stream;
+          reset uchar_utf16le i;
+          true
         | 0xEF ->                                              (* UTF-8 BOM. *)
-            nextc i; if i.c <> 0xBB then err i `Malformed_char_stream;
-            nextc i; if i.c <> 0xBF then err i `Malformed_char_stream;
-            reset uchar_utf8 i;
-            true
+          nextc i; if i.c <> 0xBB then err i `Malformed_char_stream;
+          nextc i; if i.c <> 0xBF then err i `Malformed_char_stream;
+          reset uchar_utf8 i;
+          true
         | 0x3C | _ ->                    (* UTF-8 or other, try declaration. *)
-            i.uchar <- uchar_utf8;
-            false
-        end
+          i.uchar <- uchar_utf8;
+          false
+      end
     | Some e ->                                      (* User knows encoding. *)
-        begin match e with
+      begin match e with
         | `US_ASCII -> reset uchar_ascii i
         | `ISO_8859_1 -> reset uchar_iso_8859_1 i
         | `ISO_8859_15 -> reset uchar_iso_8859_15 i
         | `UTF_8 ->                                  (* Skip BOM if present. *)
-            reset uchar_utf8 i; if i.c = u_bom then (i.col <- 0; nextc i)
+          reset uchar_utf8 i; if i.c = u_bom then (i.col <- 0; nextc i)
         | `UTF_16 ->                             (* Which UTF-16 ? look BOM. *)
-            let b0 = nextc i; i.c in
-            let b1 = nextc i; i.c in
-            begin match b0, b1 with
+          let b0 = nextc i; i.c in
+          let b1 = nextc i; i.c in
+          begin match b0, b1 with
             | 0xFE, 0xFF -> reset uchar_utf16be i
             | 0xFF, 0xFE -> reset uchar_utf16le i
             | _ -> err i `Malformed_char_stream;
-            end
+          end
         | `UTF_16BE ->                               (* Skip BOM if present. *)
-            reset uchar_utf16be i; if i.c = u_bom then (i.col <- 0; nextc i)
+          reset uchar_utf16be i; if i.c = u_bom then (i.col <- 0; nextc i)
         | `UTF_16LE ->
-            reset uchar_utf16le i; if i.c = u_bom then (i.col <- 0; nextc i)
-        end;
-        true                                      (* Ignore xml declaration. *)
+          reset uchar_utf16le i; if i.c = u_bom then (i.col <- 0; nextc i)
+      end;
+      true                                      (* Ignore xml declaration. *)
 
 
   let p_ncname i =                               (* {NCName} (Namespace 1.1) *)
     clear_ident i;
     if not (is_name_start_char i.c) then err_illegal_char i i.c else
-    begin
-      addc_ident i i.c; nextc i;
-      while is_name_char i.c do addc_ident i i.c; nextc i done;
-      Buffer.contents i.ident
-    end
+      begin
+        addc_ident i i.c; nextc i;
+        while is_name_char i.c do addc_ident i i.c; nextc i done;
+        Buffer.contents i.ident
+      end
 
   let p_qname i =                                 (* {QName} (Namespace 1.1) *)
     let n = p_ncname i in
@@ -531,31 +531,31 @@ struct
     clear_ident i;
     nextc i;
     if i.c = u_scolon then err i (`Illegal_char_ref String.empty) else
-    begin
-      try
-        if i.c = u_x then
-          begin
-            addc_ident i i.c;
-            nextc i;
+      begin
+        try
+          if i.c = u_x then
+            begin
+              addc_ident i i.c;
+              nextc i;
+              while (i.c <> u_scolon) do
+                addc_ident i i.c;
+                if not (is_hex_digit i.c) then raise Exit else
+                  c := !c * 16 + (if i.c <= u_9 then i.c - 48 else
+                                  if i.c <= u_F then i.c - 55 else
+                                    i.c - 87);
+                nextc i;
+              done
+            end
+          else
             while (i.c <> u_scolon) do
               addc_ident i i.c;
-              if not (is_hex_digit i.c) then raise Exit else
-              c := !c * 16 + (if i.c <= u_9 then i.c - 48 else
-                              if i.c <= u_F then i.c - 55 else
-                              i.c - 87);
-              nextc i;
+              if not (is_digit i.c) then raise Exit else
+                c := !c * 10 + (i.c - 48);
+              nextc i
             done
-          end
-        else
-        while (i.c <> u_scolon) do
-          addc_ident i i.c;
-          if not (is_digit i.c) then raise Exit else
-          c := !c * 10 + (i.c - 48);
-          nextc i
-        done
-      with Exit ->
-        c := -1; while i.c <> u_scolon do addc_ident i i.c; nextc i done
-    end;
+        with Exit ->
+          c := -1; while i.c <> u_scolon do addc_ident i i.c; nextc i done
+      end;
     nextc i;
     if is_char !c then (clear_ident i; addc_ident i !c; Buffer.contents i.ident)
     else err i (`Illegal_char_ref (Buffer.contents i.ident))
@@ -570,9 +570,9 @@ struct
     let ent = p_ncname i in
     accept i u_scolon;
     try Ht.find predefined_entities ent with Not_found ->
-      match i.fun_entity ent with
-      | Some s -> s
-      | None -> err i (`Unknown_entity_ref ent)
+    match i.fun_entity ent with
+    | Some s -> s
+    | None -> err i (`Unknown_entity_ref ent)
 
   let p_reference i =                                         (* {Reference} *)
     nextc i; if i.c = u_sharp then p_charref i else p_entity_ref i
@@ -581,7 +581,7 @@ struct
     skip_white i;
     let delim =
       if i.c = u_quot || i.c = u_apos then i.c else
-      err_expected_chars i [ u_quot; u_apos]
+        err_expected_chars i [ u_quot; u_apos]
     in
     nextc i;
     skip_white i;
@@ -598,33 +598,33 @@ struct
   let p_attributes i =                            (* ({S} {Attribute})* {S}? *)
     let rec aux i pre_acc acc =
       if not (is_white i.c) then pre_acc, acc else
-      begin
-        skip_white i;
-        if i.c = u_slash || i.c = u_gt then pre_acc, acc else
         begin
-          let (prefix, local) as n = p_qname i in
-          let v = skip_white i; accept i u_eq; p_attr_value i in
-          let att = n, v in
-          if str_empty prefix && str_eq local n_xmlns then
-            begin  (* xmlns *)
-              Ht.add i.ns String.empty v;
-              aux i (String.empty :: pre_acc) (att :: acc)
+          skip_white i;
+          if i.c = u_slash || i.c = u_gt then pre_acc, acc else
+            begin
+              let (prefix, local) as n = p_qname i in
+              let v = skip_white i; accept i u_eq; p_attr_value i in
+              let att = n, v in
+              if str_empty prefix && str_eq local n_xmlns then
+                begin  (* xmlns *)
+                  Ht.add i.ns String.empty v;
+                  aux i (String.empty :: pre_acc) (att :: acc)
+                end
+              else if str_eq prefix n_xmlns then
+                begin  (* xmlns:local *)
+                  Ht.add i.ns local v;
+                  aux i (local :: pre_acc) (att :: acc)
+                end
+              else if str_eq prefix n_xml && str_eq local n_space then
+                begin  (* xml:space *)
+                  if str_eq v v_preserve then i.stripping <- false else
+                  if str_eq v v_default then i.stripping <- i.strip else ();
+                  aux i pre_acc (att :: acc)
+                end
+              else
+                aux i pre_acc (att :: acc)
             end
-          else if str_eq prefix n_xmlns then
-            begin  (* xmlns:local *)
-              Ht.add i.ns local v;
-              aux i (local :: pre_acc) (att :: acc)
-            end
-          else if str_eq prefix n_xml && str_eq local n_space then
-            begin  (* xml:space *)
-              if str_eq v v_preserve then i.stripping <- false else
-              if str_eq v v_default then i.stripping <- i.strip else ();
-              aux i pre_acc (att :: acc)
-            end
-          else
-          aux i pre_acc (att :: acc)
         end
-      end
     in
     aux i [] []           (* Returns a list of bound prefixes and attributes *)
 
@@ -632,46 +632,46 @@ struct
     i.limit <-
       if i.c = u_eoi then Eoi else
       if i.c <> u_lt then Text else
-      begin
-        nextc i;
-        if i.c = u_qmark then (nextc i; Pi (p_qname i)) else
-        if i.c = u_slash then
-          begin
-            nextc i;
-            let n = p_qname i in
-            skip_white i;
-            Etag n
-          end
-        else if i.c = u_emark then
-          begin
-            nextc i;
-            if i.c = u_minus then (nextc i; accept i u_minus; Comment) else
-            if i.c = u_D then Dtd else
-            if i.c = u_lbrack then
-              begin
-                nextc i;
-                clear_ident i;
-                for k = 1 to 6 do (addc_ident i i.c; nextc i) done;
-                let cdata = Buffer.contents i.ident in
-                if str_eq cdata s_cdata then Cdata else
-                err_expected_seqs i [ s_cdata ] cdata
-              end
-            else
-            err i (`Illegal_char_seq (cat (str "<!") (str_of_char i.c)))
-          end
-        else
-        Stag (p_qname i)
-      end
+        begin
+          nextc i;
+          if i.c = u_qmark then (nextc i; Pi (p_qname i)) else
+          if i.c = u_slash then
+            begin
+              nextc i;
+              let n = p_qname i in
+              skip_white i;
+              Etag n
+            end
+          else if i.c = u_emark then
+            begin
+              nextc i;
+              if i.c = u_minus then (nextc i; accept i u_minus; Comment) else
+              if i.c = u_D then Dtd else
+              if i.c = u_lbrack then
+                begin
+                  nextc i;
+                  clear_ident i;
+                  for k = 1 to 6 do (addc_ident i i.c; nextc i) done;
+                  let cdata = Buffer.contents i.ident in
+                  if str_eq cdata s_cdata then Cdata else
+                    err_expected_seqs i [ s_cdata ] cdata
+                end
+              else
+                err i (`Illegal_char_seq (cat (str "<!") (str_of_char i.c)))
+            end
+          else
+            Stag (p_qname i)
+        end
 
   let rec skip_comment i =                    (* {Comment}, '<!--' was eaten *)
     while (i.c <> u_minus) do nextc i done;
     nextc i;
     if i.c <> u_minus then skip_comment i else
-    begin
-      nextc i;
-      if i.c <> u_gt then err_expected_chars i [ u_gt ];
-      nextc_eof i
-    end
+      begin
+        nextc i;
+        if i.c <> u_gt then err_expected_chars i [ u_gt ];
+        nextc_eof i
+      end
 
   let rec skip_pi i =                          (* {PI}, '<?' qname was eaten *)
     while (i.c <> u_qmark) do nextc i done;
@@ -679,13 +679,13 @@ struct
     if i.c <> u_gt then skip_pi i else nextc_eof i
 
   let rec skip_misc i ~allow_xmlpi = match i.limit with          (* {Misc}* *)
-  | Pi (p,l) when (str_empty p && str_eq n_xml (String.lowercase l)) ->
+    | Pi (p,l) when (str_empty p && str_eq n_xml (String.lowercase l)) ->
       if allow_xmlpi then () else err i (`Illegal_char_seq l)
-  | Pi _ -> skip_pi i; p_limit i; skip_misc i ~allow_xmlpi
-  | Comment -> skip_comment i; p_limit i; skip_misc i ~allow_xmlpi
-  | Text when is_white i.c ->
+    | Pi _ -> skip_pi i; p_limit i; skip_misc i ~allow_xmlpi
+    | Comment -> skip_comment i; p_limit i; skip_misc i ~allow_xmlpi
+    | Text when is_white i.c ->
       skip_white_eof i; p_limit i; skip_misc i ~allow_xmlpi
-  | _ -> ()
+    | _ -> ()
 
   let p_chardata addc i =           (* {CharData}* ({Reference}{Chardata})* *)
     while (i.c <> u_lt) do
@@ -702,7 +702,7 @@ struct
           end
         end
       else
-      (addc i i.c; nextc i)
+        (addc i i.c; nextc i)
     done
 
   let rec p_cdata addc i =                               (* {CData} {CDEnd} *)
@@ -729,100 +729,100 @@ struct
     in
     match i.limit with
     | Pi (p, l) when (str_empty p && str_eq l n_xml) ->
-        let v = skip_white i; p_ncname i in
-        if not (str_eq v n_version) then err_expected_seqs i [ n_version ] v;
-        p_val_exp i [v_version_1_0; v_version_1_1];
-        skip_white i;
-        if i.c <> u_qmark then begin
-          let n = p_ncname i in
-          if str_eq n n_encoding then begin
-            let enc = String.lowercase (p_val i) in
-            if not ignore_enc then begin
-              if str_eq enc v_utf_8 then i.uchar <- uchar_utf8 else
-              if str_eq enc v_utf_16be then i.uchar <- uchar_utf16be else
-              if str_eq enc v_utf_16le then i.uchar <- uchar_utf16le else
-              if str_eq enc v_iso_8859_1 then i.uchar <- uchar_iso_8859_1 else
-              if str_eq enc v_iso_8859_15 then i.uchar <- uchar_iso_8859_15 else
-              if str_eq enc v_us_ascii then i.uchar <- uchar_ascii else
-              if str_eq enc v_ascii then i.uchar <- uchar_ascii else
-              if str_eq enc v_utf_16 then
-                if ignore_utf16 then () else (err i `Malformed_char_stream)
-                (* A BOM should have been found. *)
-              else
+      let v = skip_white i; p_ncname i in
+      if not (str_eq v n_version) then err_expected_seqs i [ n_version ] v;
+      p_val_exp i [v_version_1_0; v_version_1_1];
+      skip_white i;
+      if i.c <> u_qmark then begin
+        let n = p_ncname i in
+        if str_eq n n_encoding then begin
+          let enc = String.lowercase (p_val i) in
+          if not ignore_enc then begin
+            if str_eq enc v_utf_8 then i.uchar <- uchar_utf8 else
+            if str_eq enc v_utf_16be then i.uchar <- uchar_utf16be else
+            if str_eq enc v_utf_16le then i.uchar <- uchar_utf16le else
+            if str_eq enc v_iso_8859_1 then i.uchar <- uchar_iso_8859_1 else
+            if str_eq enc v_iso_8859_15 then i.uchar <- uchar_iso_8859_15 else
+            if str_eq enc v_us_ascii then i.uchar <- uchar_ascii else
+            if str_eq enc v_ascii then i.uchar <- uchar_ascii else
+            if str_eq enc v_utf_16 then
+              if ignore_utf16 then () else (err i `Malformed_char_stream)
+              (* A BOM should have been found. *)
+            else
               err i (`Unknown_encoding enc)
-            end;
-            skip_white i;
-            if i.c <> u_qmark then begin
-              let n = p_ncname i in
-              if str_eq n n_standalone then p_val_exp i yes_no else
+          end;
+          skip_white i;
+          if i.c <> u_qmark then begin
+            let n = p_ncname i in
+            if str_eq n n_standalone then p_val_exp i yes_no else
               err_expected_seqs i [ n_standalone; str "?>" ] n
-            end
           end
-          else if str_eq n n_standalone then
-            p_val_exp i yes_no
-          else
+        end
+        else if str_eq n n_standalone then
+          p_val_exp i yes_no
+        else
           err_expected_seqs i [ n_encoding; n_standalone; str "?>" ] n
-        end;
-        skip_white i;
-        accept i u_qmark;
-        accept i u_gt;
-        p_limit i
+      end;
+      skip_white i;
+      accept i u_qmark;
+      accept i u_gt;
+      p_limit i
     | _ -> ()
 
   let p_dtd_signal i =(* {Misc}* {doctypedecl} {Misc}* *)
     skip_misc i ~allow_xmlpi:false;
     if i.limit <> Dtd then `Dtd None else
-    begin
-      let buf = addc_data i in
-      let nest = ref 1 in
-      clear_data i;
-      buf u_lt; buf u_emark;                             (* add eaten "<!" *)
-      while (!nest > 0) do
-        if i.c = u_lt then
-          begin
-            nextc i;
-            if i.c <> u_emark then
-              (buf u_lt; incr nest)
-            else
+      begin
+        let buf = addc_data i in
+        let nest = ref 1 in
+        clear_data i;
+        buf u_lt; buf u_emark;                             (* add eaten "<!" *)
+        while (!nest > 0) do
+          if i.c = u_lt then
             begin
               nextc i;
-              if i.c <> u_minus then         (* Carefull with comments ! *)
-                (buf u_lt; buf u_emark; incr nest)
+              if i.c <> u_emark then
+                (buf u_lt; incr nest)
               else
-              begin
-                nextc i;
-                if i.c <> u_minus then
-                  (buf u_lt; buf u_emark; buf u_minus; incr nest)
-                else
-                (nextc i; skip_comment i)
-              end
+                begin
+                  nextc i;
+                  if i.c <> u_minus then         (* Carefull with comments ! *)
+                    (buf u_lt; buf u_emark; incr nest)
+                  else
+                    begin
+                      nextc i;
+                      if i.c <> u_minus then
+                        (buf u_lt; buf u_emark; buf u_minus; incr nest)
+                      else
+                        (nextc i; skip_comment i)
+                    end
+                end
             end
-          end
-        else if i.c = u_quot || i.c = u_apos then
-          begin
-            let c = i.c in
-            buf c; nextc i;
-            while (i.c <> c) do (buf i.c; nextc i) done;
-            buf c; nextc i
-          end
-        else if i.c = u_gt then (buf u_gt; nextc i; decr nest)
-        else (buf i.c; nextc i)
-      done;
-      let dtd = Buffer.contents i.data in
-      p_limit i;
-      skip_misc i ~allow_xmlpi:false;
-      `Dtd (Some dtd);
-    end
+          else if i.c = u_quot || i.c = u_apos then
+            begin
+              let c = i.c in
+              buf c; nextc i;
+              while (i.c <> c) do (buf i.c; nextc i) done;
+              buf c; nextc i
+            end
+          else if i.c = u_gt then (buf u_gt; nextc i; decr nest)
+          else (buf i.c; nextc i)
+        done;
+        let dtd = Buffer.contents i.data in
+        p_limit i;
+        skip_misc i ~allow_xmlpi:false;
+        `Dtd (Some dtd);
+      end
 
   let p_data i =
     let rec bufferize addc i = match i.limit with
-    | Text -> p_chardata addc i; p_limit i; bufferize addc i
-    | Cdata -> p_cdata addc i; p_limit i; bufferize addc i
-    | (Stag _ | Etag _) -> ()
-    | Pi _ -> skip_pi i; p_limit i; bufferize addc i
-    | Comment -> skip_comment i; p_limit i; bufferize addc i
-    | Dtd -> err i (`Illegal_char_seq (str "<!D"))
-    | Eoi -> err i `Unexpected_eoi
+      | Text -> p_chardata addc i; p_limit i; bufferize addc i
+      | Cdata -> p_cdata addc i; p_limit i; bufferize addc i
+      | (Stag _ | Etag _) -> ()
+      | Pi _ -> skip_pi i; p_limit i; bufferize addc i
+      | Comment -> skip_comment i; p_limit i; bufferize addc i
+      | Dtd -> err i (`Illegal_char_seq (str "<!D"))
+      | Eoi -> err i `Unexpected_eoi
     in
     clear_data i;
     i.last_white <- true;
@@ -834,7 +834,7 @@ struct
     let expand_att (((prefix, local) as n, v) as att) =
       if not (str_eq prefix String.empty) then expand_name i n, v else
       if str_eq local n_xmlns then (ns_xmlns, n_xmlns), v else
-      att (* default namespaces do not influence attributes. *)
+        att (* default namespaces do not influence attributes. *)
     in
     let strip = i.stripping in  (* save it here, p_attributes may change it. *)
     let prefixes, atts = p_attributes i in
@@ -842,7 +842,7 @@ struct
     `El_start ((expand_name i n), List.rev_map expand_att atts)
 
   let p_el_end_signal i n = match i.scopes with
-  | (n', prefixes, strip) :: scopes ->
+    | (n', prefixes, strip) :: scopes ->
       if i.c <> u_gt then err_expected_chars i [ u_gt ];
       if not (str_eq n n') then err_expected_seqs i [name_str n'] (name_str n);
       i.scopes <- scopes;
@@ -850,7 +850,7 @@ struct
       List.iter (Ht.remove i.ns) prefixes;
       if scopes = [] then i.c <- u_end_doc else (nextc i; p_limit i);
       `El_end
-  | _ -> assert false
+    | _ -> assert false
 
   let p_signal i =
     if i.scopes = [] then
@@ -858,33 +858,33 @@ struct
       | Stag n -> p_el_start_signal i n
       | _ -> err i `Expected_root_element
     else
-    let rec find i = match i.limit with
-    | Stag n -> p_el_start_signal i n
-    | Etag n -> p_el_end_signal i n
-    | Text | Cdata ->
-        let d = p_data i in
-        if str_empty d then find i else `Data d
-    | Pi _ -> skip_pi i; p_limit i; find i
-    | Comment -> skip_comment i; p_limit i; find i
-    | Dtd -> err i (`Illegal_char_seq (str "<!D"))
-    | Eoi -> err i `Unexpected_eoi
-    in
-    begin match i.peek with
-    | `El_start (n, _) ->                   (* finish to input start el. *)
-        skip_white i;
-        if i.c = u_gt then (accept i u_gt; p_limit i) else
-        if i.c = u_slash then
-          begin
-            let tag = match i.scopes with
-            | (tag, _, _) :: _ -> tag | _ -> assert false
-            in
-            (nextc i; i.limit <- Etag tag)
-          end
-        else
-        err_expected_chars i [ u_slash; u_gt ]
-    | _ -> ()
-    end;
-    find i
+      let rec find i = match i.limit with
+        | Stag n -> p_el_start_signal i n
+        | Etag n -> p_el_end_signal i n
+        | Text | Cdata ->
+          let d = p_data i in
+          if str_empty d then find i else `Data d
+        | Pi _ -> skip_pi i; p_limit i; find i
+        | Comment -> skip_comment i; p_limit i; find i
+        | Dtd -> err i (`Illegal_char_seq (str "<!D"))
+        | Eoi -> err i `Unexpected_eoi
+      in
+      begin match i.peek with
+        | `El_start (n, _) ->                   (* finish to input start el. *)
+          skip_white i;
+          if i.c = u_gt then (accept i u_gt; p_limit i) else
+          if i.c = u_slash then
+            begin
+              let tag = match i.scopes with
+                | (tag, _, _) :: _ -> tag | _ -> assert false
+              in
+              (nextc i; i.limit <- Etag tag)
+            end
+          else
+            err_expected_chars i [ u_slash; u_gt ]
+        | _ -> ()
+      end;
+      find i
 
   let eoi i =
     try
@@ -899,20 +899,20 @@ struct
           false
         end
       else                                          (* Subsequent documents. *)
-      begin
-        nextc_eof i;
-        p_limit i;
-        if i.c = u_eoi then true else
         begin
-          skip_misc i ~allow_xmlpi:true;
+          nextc_eof i;
+          p_limit i;
           if i.c = u_eoi then true else
-          begin
-            p_xml_decl i ~ignore_enc:false ~ignore_utf16:true;
-            i.peek <- p_dtd_signal i;
-            false
-          end
+            begin
+              skip_misc i ~allow_xmlpi:true;
+              if i.c = u_eoi then true else
+                begin
+                  p_xml_decl i ~ignore_enc:false ~ignore_utf16:true;
+                  i.peek <- p_dtd_signal i;
+                  false
+                end
+            end
         end
-      end
     with
     | Buffer.Full -> err i `Max_buffer_size
     | Malformed -> err i `Malformed_char_stream
@@ -923,43 +923,43 @@ struct
   let input i =
     try
       if i.c = u_end_doc then (i.c <- u_start_doc; i.peek) else
-      let s = peek i in
-      i.peek <- p_signal i;
-      s
+        let s = peek i in
+        i.peek <- p_signal i;
+        s
     with
     | Buffer.Full -> err i `Max_buffer_size
     | Malformed -> err i `Malformed_char_stream
     | End_of_file -> err i `Unexpected_eoi
 
   let input_tree ~el ~data i = match input i with
-  | `Data d -> data d
-  | `El_start tag ->
+    | `Data d -> data d
+    | `El_start tag ->
       let rec aux i tags context = match input i with
-      | `El_start tag -> aux i (tag :: tags) ([] :: context)
-      | `El_end ->
+        | `El_start tag -> aux i (tag :: tags) ([] :: context)
+        | `El_end ->
           begin match tags, context with
-          | tag :: tags', childs :: context' ->
+            | tag :: tags', childs :: context' ->
               let el = el tag (List.rev childs) in
               begin match context' with
-              | parent :: context'' -> aux i tags' ((el :: parent) :: context'')
-              | [] -> el
+                | parent :: context'' -> aux i tags' ((el :: parent) :: context'')
+                | [] -> el
               end
-          | _ -> assert false
+            | _ -> assert false
           end
-      | `Data d ->
+        | `Data d ->
           begin match context with
-          | childs :: context' -> aux i tags (((data d) :: childs) :: context')
-          | [] -> assert false
+            | childs :: context' -> aux i tags (((data d) :: childs) :: context')
+            | [] -> assert false
           end
-      | `Dtd _ -> assert false
+        | `Dtd _ -> assert false
       in
       aux i (tag :: []) ([] :: [])
-  | _ -> invalid_arg err_input_tree
+    | _ -> invalid_arg err_input_tree
 
 
   let input_doc_tree ~el ~data i = match input i with
-  | `Dtd d -> d, input_tree ~el ~data i
-  | _ -> invalid_arg err_input_doc_tree
+    | `Dtd d -> d, input_tree ~el ~data i
+    | _ -> invalid_arg err_input_doc_tree
 
   let pos i = i.line, i.col
 
@@ -979,7 +979,7 @@ struct
       outc : char -> unit;                              (* character output. *)
       mutable last_el_start : bool;     (* True if last signal was `El_start *)
       mutable scopes : (name * (string list)) list;
-        (* Qualified el. name and bound uris. *)
+      (* Qualified el. name and bound uris. *)
       mutable depth : int; }                                 (* Scope depth. *)
 
   let err_prefix uri = "unbound namespace (" ^ uri ^ ")"
@@ -991,9 +991,9 @@ struct
   let make_output ?(decl = true) ?(nl = false) ?(indent = None)
       ?(ns_prefix = fun _ ->None) d =
     let outs, outc = match d with
-    | `Channel c -> (output_substring c), (output_char c)
-    | `Buffer b -> (Std_buffer.add_substring b), (Std_buffer.add_char b)
-    | `Fun f ->
+      | `Channel c -> (output_substring c), (output_char c)
+      | `Buffer b -> (Std_buffer.add_substring b), (Std_buffer.add_char b)
+      | `Fun f ->
         let os s p l =
           for i = p to p + l - 1 do f (Char.code (Std_string.get s i)) done
         in
@@ -1021,18 +1021,18 @@ struct
       if str_eq ns ns_xmlns && str_eq local n_xmlns then (String.empty, n_xmlns)
       else (Ht.find o.prefixes ns, local)
     with Not_found ->
-      match o.fun_prefix ns with
-      | None -> invalid_arg (err_prefix (str_utf_8 ns))
-      | Some prefix -> prefix, local
+    match o.fun_prefix ns with
+    | None -> invalid_arg (err_prefix (str_utf_8 ns))
+    | Some prefix -> prefix, local
 
   let bind_prefixes o atts =
     let add acc ((ns, local), uri) =
       if not (str_eq ns ns_xmlns) then acc else
-      begin
-        let prefix = if str_eq local n_xmlns then String.empty else local in
-        Ht.add o.prefixes uri prefix;
-        uri :: acc
-      end
+        begin
+          let prefix = if str_eq local n_xmlns then String.empty else local in
+          Ht.add o.prefixes uri prefix;
+          uri :: acc
+        end
     in
     List.fold_left add [] atts
 
@@ -1048,14 +1048,14 @@ struct
         start := !last
       in
       while (!last < len) do match Std_string.get s !last with
-      | '<' -> escape "&lt;"         (* Escape markup delimiters. *)
-      | '>' -> escape "&gt;"
-      | '&' -> escape "&amp;"
-   (* | '\'' -> escape "&apos;" *) (* Not needed we use \x22 for attributes. *)
-      | '\x22' -> escape "&quot;"
-      | '\n' | '\t' | '\r' -> incr last
-      | c when c < ' ' -> escape "\xEF\xBF\xBD" (* illegal, subst. by U+FFFD *)
-      | _ -> incr last
+        | '<' -> escape "&lt;"         (* Escape markup delimiters. *)
+        | '>' -> escape "&gt;"
+        | '&' -> escape "&amp;"
+        (* | '\'' -> escape "&apos;" *) (* Not needed we use \x22 for attributes. *)
+        | '\x22' -> escape "&quot;"
+        | '\n' | '\t' | '\r' -> incr last
+        | c when c < ' ' -> escape "\xEF\xBF\xBD" (* illegal, subst. by U+FFFD *)
+        | _ -> incr last
       done;
       o.outs s !start (!last - !start)
     in
@@ -1072,73 +1072,73 @@ struct
 
   let output o s =
     let indent o = match o.indent with
-    | None -> ()
-    | Some c -> for i = 1 to (o.depth * c) do o.outc ' ' done
+      | None -> ()
+      | Some c -> for i = 1 to (o.depth * c) do o.outc ' ' done
     in
     let unindent o = match o.indent with None -> () | Some _ -> o.outc '\n' in
     if o.depth = -1 then
       begin match s with
-      | `Dtd d ->
+        | `Dtd d ->
           if o.decl then outs o "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
           begin match d with
-          | Some dtd -> out_utf_8 o dtd; o.outc '\n'
-          | None -> ()
+            | Some dtd -> out_utf_8 o dtd; o.outc '\n'
+            | None -> ()
           end;
           o.depth <- 0
-      | `Data _ -> invalid_arg err_data
-      | `El_start _ -> invalid_arg err_el_start
-      | `El_end -> invalid_arg err_el_end
+        | `Data _ -> invalid_arg err_data
+        | `El_start _ -> invalid_arg err_el_start
+        | `El_end -> invalid_arg err_el_end
       end
     else
-    begin match s with
-    | `El_start (n, atts) ->
-        if o.last_el_start then (outs o ">"; unindent o);
-        indent o;
-        let uris = bind_prefixes o atts in
-        let qn = prefix_name o n in
-        o.outc '<'; out_qname o qn; List.iter (out_attribute o) atts;
-        o.scopes <- (qn, uris) :: o.scopes;
-        o.depth <- o.depth + 1;
-        o.last_el_start <- true
-    | `El_end ->
-        begin match o.scopes with
-        | (n, uris) :: scopes' ->
-            o.depth <- o.depth - 1;
-            if o.last_el_start then outs o "/>" else
-            begin
-              indent o;
-              outs o "</"; out_qname o n; o.outc '>';
-            end;
-            o.scopes <- scopes';
-            List.iter (Ht.remove o.prefixes) uris;
-            o.last_el_start <- false;
-            if o.depth = 0 then (if o.nl then o.outc '\n'; o.depth <- -1;)
-            else unindent o
-        | [] -> invalid_arg err_el_end
-        end
-    | `Data d ->
-        if o.last_el_start then (outs o ">"; unindent o);
-        indent o;
-        out_data o d;
-        unindent o;
-        o.last_el_start <- false
-    | `Dtd _ -> failwith err_dtd
-    end
+      begin match s with
+        | `El_start (n, atts) ->
+          if o.last_el_start then (outs o ">"; unindent o);
+          indent o;
+          let uris = bind_prefixes o atts in
+          let qn = prefix_name o n in
+          o.outc '<'; out_qname o qn; List.iter (out_attribute o) atts;
+          o.scopes <- (qn, uris) :: o.scopes;
+          o.depth <- o.depth + 1;
+          o.last_el_start <- true
+        | `El_end ->
+          begin match o.scopes with
+            | (n, uris) :: scopes' ->
+              o.depth <- o.depth - 1;
+              if o.last_el_start then outs o "/>" else
+                begin
+                  indent o;
+                  outs o "</"; out_qname o n; o.outc '>';
+                end;
+              o.scopes <- scopes';
+              List.iter (Ht.remove o.prefixes) uris;
+              o.last_el_start <- false;
+              if o.depth = 0 then (if o.nl then o.outc '\n'; o.depth <- -1;)
+              else unindent o
+            | [] -> invalid_arg err_el_end
+          end
+        | `Data d ->
+          if o.last_el_start then (outs o ">"; unindent o);
+          indent o;
+          out_data o d;
+          unindent o;
+          o.last_el_start <- false
+        | `Dtd _ -> failwith err_dtd
+      end
 
   let output_tree frag o v =
     let rec aux o = function
-    | (v :: rest) :: context ->
+      | (v :: rest) :: context ->
         begin match frag v with
-        | `El (tag, childs) ->
+          | `El (tag, childs) ->
             output o (`El_start tag);
             aux o (childs :: rest :: context)
-        | (`Data d) as signal ->
+          | (`Data d) as signal ->
             output o signal;
             aux o (rest :: context)
         end
-    | [] :: [] -> ()
-    | [] :: context -> output o `El_end; aux o context
-    | [] -> assert false
+      | [] :: [] -> ()
+      | [] :: context -> output o `El_end; aux o context
+      | [] -> assert false
     in
     aux o ([v] :: [])
 
@@ -1162,7 +1162,7 @@ module String = struct
     let i () =
       incr pos;
       if !pos = len then raise Exit else
-      Char.code (Std_string.get s !pos)
+        Char.code (Std_string.get s !pos)
     in
     try while true do f (uchar_utf8 i) done with Exit -> ()
 
@@ -1190,10 +1190,10 @@ module Buffer = struct
          buf (0x80 lor ((u lsr 6) land 0x3F));
          buf (0x80 lor (u land 0x3F)))
       else
-      (buf (0xF0 lor (u lsr 18));
-       buf (0x80 lor ((u lsr 12) land 0x3F));
-       buf (0x80 lor ((u lsr 6) land 0x3F));
-       buf (0x80 lor (u land 0x3F)))
+        (buf (0xF0 lor (u lsr 18));
+         buf (0x80 lor ((u lsr 12) land 0x3F));
+         buf (0x80 lor ((u lsr 6) land 0x3F));
+         buf (0x80 lor (u land 0x3F)))
     with Failure _ -> raise Full
 
   let clear b = Buffer.clear b
@@ -1207,8 +1207,8 @@ include Make(String) (Buffer)
 
 let pp = Format.fprintf
 let rec pp_list ?(pp_sep = Format.pp_print_cut) pp_v ppf = function
-| [] -> ()
-| v :: vs ->
+  | [] -> ()
+  | v :: vs ->
     pp_v ppf v; if vs <> [] then (pp_sep ppf (); pp_list ~pp_sep pp_v ppf vs)
 
 let pp_name ppf (p, l) = if p <> "" then pp ppf "%s:%s" p l else pp ppf "%s" l
@@ -1219,14 +1219,14 @@ let pp_tag ppf (name, atts) =
     pp_name name (pp_list ~pp_sep pp_attribute) atts
 
 let pp_dtd ppf = function
-| None -> pp ppf "None"
-| Some dtd -> pp ppf "@[<1>(Some@ %S)@]" dtd
+  | None -> pp ppf "None"
+  | Some dtd -> pp ppf "@[<1>(Some@ %S)@]" dtd
 
 let pp_signal ppf = function
-| `Data s -> pp ppf "@[`Data %S@]" s
-| `El_end -> pp ppf "`El_end"
-| `El_start tag -> pp ppf "@[`El_start %a@]" pp_tag tag
-| `Dtd dtd -> pp ppf "@[`Dtd %a@]" pp_dtd dtd
+  | `Data s -> pp ppf "@[`Data %S@]" s
+  | `El_end -> pp ppf "`El_end"
+  | `El_start tag -> pp ppf "@[`El_start %a@]" pp_tag tag
+  | `Dtd dtd -> pp ppf "@[`Dtd %a@]" pp_dtd dtd
 
 (*----------------------------------------------------------------------------
    Copyright (c) 2007 The xmlm programmers

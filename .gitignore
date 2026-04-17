@@ -7,3 +7,5 @@ TODO
 *.native
 *.byte
 *.install
+_opam
+.envrc

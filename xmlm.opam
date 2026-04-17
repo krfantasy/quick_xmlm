@@ -15,7 +15,7 @@ doc: "https://erratique.ch/software/xmlm/doc/"
 bug-reports: "https://github.com/dbuenzli/xmlm/issues"
 depends: [
   "dune" {>= "3.0"}
-  "ocaml" {>= "4.05.0"}
+  "ocaml" {>= "5.2.0"}
   "odoc" {with-doc}
 ]
 build: [
