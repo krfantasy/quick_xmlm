@@ -3,5 +3,5 @@
  (public_name xmlm)
  (synopsis "Streaming XML codec for OCaml")
  (modules :standard)
- (libraries)
+ (libraries stdlib_stable)
  (ocamlopt_flags (:standard -zero-alloc-check all)))

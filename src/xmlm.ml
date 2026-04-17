@@ -198,6 +198,7 @@ let uchar_ascii i = let b = i () in if b > 127 then raise Malformed else b
 
 module Make (String : String) (Buffer : Buffer with type string = String.t) =
 struct
+  module Int_u = Stdlib_stable.Int_u
   type string = String.t
 
   let str = String.of_string
@@ -213,29 +214,29 @@ struct
       let equal = str_eq
       let hash = Hashtbl.hash end)
 
-  let u_nl = 0x000A     (* newline *)
-  let u_cr = 0x000D     (* carriage return *)
-  let u_space = 0x0020  (* space *)
-  let u_quot = 0x0022   (* quote *)
-  let u_sharp = 0x0023  (* # *)
-  let u_amp = 0x0026    (* & *)
-  let u_apos = 0x0027   (* ' *)
-  let u_minus = 0x002D  (* - *)
-  let u_slash = 0x002F  (* / *)
-  let u_colon = 0x003A  (* : *)
-  let u_scolon = 0x003B (* ; *)
-  let u_lt = 0x003C     (* < *)
-  let u_eq = 0x003D     (* = *)
-  let u_gt = 0x003E     (* > *)
-  let u_qmark = 0x003F  (* ? *)
-  let u_emark = 0x0021  (* ! *)
-  let u_lbrack = 0x005B (* [ *)
-  let u_rbrack = 0x005D (* ] *)
-  let u_x = 0x0078      (* x *)
-  let u_bom = 0xFEFF    (* BOM *)
-  let u_9 = 0x0039      (* 9 *)
-  let u_F = 0x0046      (* F *)
-  let u_D = 0X0044      (* D *)
+  let u_nl = Int_u.of_int 0x000A     (* newline *)
+  let u_cr = Int_u.of_int 0x000D     (* carriage return *)
+  let u_space = Int_u.of_int 0x0020  (* space *)
+  let u_quot = Int_u.of_int 0x0022   (* quote *)
+  let u_sharp = Int_u.of_int 0x0023  (* # *)
+  let u_amp = Int_u.of_int 0x0026    (* & *)
+  let u_apos = Int_u.of_int 0x0027   (* ' *)
+  let u_minus = Int_u.of_int 0x002D  (* - *)
+  let u_slash = Int_u.of_int 0x002F  (* / *)
+  let u_colon = Int_u.of_int 0x003A  (* : *)
+  let u_scolon = Int_u.of_int 0x003B (* ; *)
+  let u_lt = Int_u.of_int 0x003C     (* < *)
+  let u_eq = Int_u.of_int 0x003D     (* = *)
+  let u_gt = Int_u.of_int 0x003E     (* > *)
+  let u_qmark = Int_u.of_int 0x003F  (* ? *)
+  let u_emark = Int_u.of_int 0x0021  (* ! *)
+  let u_lbrack = Int_u.of_int 0x005B (* [ *)
+  let u_rbrack = Int_u.of_int 0x005D (* ] *)
+  let u_x = Int_u.of_int 0x0078      (* x *)
+  let u_bom = Int_u.of_int 0xFEFF    (* BOM *)
+  let u_9 = Int_u.of_int 0x0039      (* 9 *)
+  let u_F = Int_u.of_int 0x0046      (* F *)
+  let u_D = Int_u.of_int 0x0044      (* D *)
 
   let s_cdata = str "CDATA["
   let ns_xml = str "http://www.w3.org/XML/1998/namespace"
@@ -340,10 +341,10 @@ struct
       fun_entity : string -> string option;    (* Entity reference callback. *)
       i : unit -> int;                                  (* Byte level input. *)
       mutable uchar : (unit -> int) -> int;      (* Unicode character lexer. *)
-      mutable c : int;                               (* Character lookahead. *)
+      mutable c : int#;                              (* Character lookahead. *)
       mutable cr : bool;                         (* True if last u was '\r'. *)
-      mutable line : int;                            (* Current line number. *)
-      mutable col : int;                           (* Current column number. *)
+      mutable line : int#;                           (* Current line number. *)
+      mutable col : int#;                            (* Current column number. *)
       mutable limit : limit;                           (* Last parsed limit. *)
       mutable peek : signal;                            (* Signal lookahead. *)
       mutable stripping : bool;             (* True if stripping whitespace. *)
@@ -356,15 +357,15 @@ struct
 
   let err_input_tree = "input signal not `El_start or `Data"
   let err_input_doc_tree = "input signal not `Dtd"
-  let[@cold][@zero_alloc assume error] err i e = raise (Error ((i.line, i.col), e))
-  let err_illegal_char i u = err i (`Illegal_char_seq (str_of_char u))
+  let[@cold][@zero_alloc assume error] err i e = raise (Error ((Int_u.to_int i.line, Int_u.to_int i.col), e))
+  let err_illegal_char i u = err i (`Illegal_char_seq (str_of_char (Int_u.to_int u)))
   let err_expected_seqs i exps s = err i (`Expected_char_seqs (exps, s))
   let err_expected_chars i exps =
-    err i (`Expected_char_seqs (List.map str_of_char exps, str_of_char i.c))
+    err i (`Expected_char_seqs (List.map str_of_char exps, str_of_char (Int_u.to_int i.c)))
 
-  let u_eoi = max_int
-  let u_start_doc = u_eoi - 1
-  let u_end_doc = u_start_doc - 1
+  let u_eoi = Int_u.max_int ()
+  let u_start_doc = Int_u.pred u_eoi
+  let u_end_doc = Int_u.pred u_start_doc
   let signal_start_stream = `Data String.empty
 
   let make_input ?(enc = None) ?(strip = false) ?(ns = fun _ -> None)
@@ -389,59 +390,76 @@ struct
     in
     { enc = enc; strip = strip; fun_ns  = ns; fun_entity = entity;
       i = i; uchar = uchar_byte; c = u_start_doc; cr = false;
-      line = 1; col = 0; limit = Text; peek = signal_start_stream;
+      line = Int_u.one (); col = Int_u.zero (); limit = Text; peek = signal_start_stream;
       stripping = strip; last_white = true; scopes = []; ns = bindings;
       ident = Buffer.create 64; data = Buffer.create 1024; }
 
   (* Bracketed non-terminals in comments refer to XML 1.0 non terminals *)
 
-  let r : int -> int -> int -> bool = fun u a b -> a <= u && u <= b
-  let is_white = function 0x0020 | 0x0009 | 0x000D | 0x000A -> true | _ -> false
+  let r (u : int#) a b = Int_u.compare a u <= 0 && Int_u.compare u b <= 0
+  let is_white (u : int#) =
+    Int_u.equal u u_space || Int_u.equal u u_nl ||
+    Int_u.equal u u_cr || Int_u.equal u (Int_u.of_int 0x0009)
 
-  let is_char = function                                           (* {Char} *)
-    | u when r u 0x0020 0xD7FF -> true
-    | 0x0009 | 0x000A | 0x000D -> true
-    | u when r u 0xE000 0xFFFD || r u 0x10000 0x10FFFF -> true
-    | _ -> false
+  let is_char (u : int#) =                                          (* {Char} *)
+    r u (Int_u.of_int 0x0020) (Int_u.of_int 0xD7FF) ||
+    Int_u.equal u (Int_u.of_int 0x0009) || Int_u.equal u u_nl || Int_u.equal u u_cr ||
+    r u (Int_u.of_int 0xE000) (Int_u.of_int 0xFFFD) ||
+    r u (Int_u.of_int 0x10000) (Int_u.of_int 0x10FFFF)
 
-  let is_digit u = r u 0x0030 0x0039
+  let is_digit u = r u (Int_u.of_int 0x0030) (Int_u.of_int 0x0039)
   let is_hex_digit u =
-    r u 0x0030 0x0039 || r u 0x0041 0x0046 || r u 0x0061 0x0066
+    r u (Int_u.of_int 0x0030) (Int_u.of_int 0x0039) ||
+    r u (Int_u.of_int 0x0041) (Int_u.of_int 0x0046) ||
+    r u (Int_u.of_int 0x0061) (Int_u.of_int 0x0066)
 
   let comm_range u =                            (* common to functions below *)
-    r u 0x00C0 0x00D6 || r u 0x00D8 0x00F6 || r u 0x00F8 0x02FF ||
-    r u 0x0370 0x037D || r u 0x037F 0x1FFF || r u 0x200C 0x200D ||
-    r u 0x2070 0x218F || r u 0x2C00 0x2FEF || r u 0x3001 0xD7FF ||
-    r u 0xF900 0xFDCF || r u 0xFDF0 0xFFFD || r u 0x10000 0xEFFFF
+    r u (Int_u.of_int 0x00C0) (Int_u.of_int 0x00D6) ||
+    r u (Int_u.of_int 0x00D8) (Int_u.of_int 0x00F6) ||
+    r u (Int_u.of_int 0x00F8) (Int_u.of_int 0x02FF) ||
+    r u (Int_u.of_int 0x0370) (Int_u.of_int 0x037D) ||
+    r u (Int_u.of_int 0x037F) (Int_u.of_int 0x1FFF) ||
+    r u (Int_u.of_int 0x200C) (Int_u.of_int 0x200D) ||
+    r u (Int_u.of_int 0x2070) (Int_u.of_int 0x218F) ||
+    r u (Int_u.of_int 0x2C00) (Int_u.of_int 0x2FEF) ||
+    r u (Int_u.of_int 0x3001) (Int_u.of_int 0xD7FF) ||
+    r u (Int_u.of_int 0xF900) (Int_u.of_int 0xFDCF) ||
+    r u (Int_u.of_int 0xFDF0) (Int_u.of_int 0xFFFD) ||
+    r u (Int_u.of_int 0x10000) (Int_u.of_int 0xEFFFF)
 
-  let is_name_start_char = function       (* {NameStartChar} - ':' (XML 1.1) *)
-    | u when r u 0x0061 0x007A || r u 0x0041 0x005A -> true   (* [a-z] | [A-Z] *)
-    | u when is_white u -> false
-    | 0x005F -> true                                                    (* '_' *)
-    | u when comm_range u -> true
-    | _ -> false
+  let is_name_start_char (u : int#) =     (* {NameStartChar} - ':' (XML 1.1) *)
+    r u (Int_u.of_int 0x0061) (Int_u.of_int 0x007A) ||
+    r u (Int_u.of_int 0x0041) (Int_u.of_int 0x005A) ||
+    Int_u.equal u (Int_u.of_int 0x005F) ||
+    (not (is_white u) && comm_range u)
 
-  let is_name_char = function                  (* {NameChar} - ':' (XML 1.1) *)
-    | u when r u 0x0061 0x007A || r u 0x0041 0x005A -> true   (* [a-z] | [A-Z] *)
-    | u when is_white u -> false
-    | u when  r u 0x0030 0x0039 -> true                               (* [0-9] *)
-    | 0x005F | 0x002D | 0x002E | 0x00B7 -> true                 (* '_' '-' '.' *)
-    | u when comm_range u || r u 0x0300 0x036F || r u 0x203F 0x2040 -> true
-    | _ -> false
+  let is_name_char (u : int#) =             (* {NameChar} - ':' (XML 1.1) *)
+    r u (Int_u.of_int 0x0061) (Int_u.of_int 0x007A) ||
+    r u (Int_u.of_int 0x0041) (Int_u.of_int 0x005A) ||
+    (not (is_white u) &&
+     (r u (Int_u.of_int 0x0030) (Int_u.of_int 0x0039) ||
+      Int_u.equal u (Int_u.of_int 0x005F) ||
+      Int_u.equal u (Int_u.of_int 0x002D) ||
+      Int_u.equal u (Int_u.of_int 0x002E) ||
+      Int_u.equal u (Int_u.of_int 0x00B7) ||
+      comm_range u ||
+      r u (Int_u.of_int 0x0300) (Int_u.of_int 0x036F) ||
+      r u (Int_u.of_int 0x203F) (Int_u.of_int 0x2040)))
 
   let[@zero_alloc opt] rec nextc i =
-    if i.c = u_eoi then err i `Unexpected_eoi;
-    if i.c = u_nl then (i.line <- i.line + 1; i.col <- 1)
-    else i.col <- i.col + 1;
-    i.c <- (i.uchar [@zero_alloc assume]) i.i;
+    if Int_u.equal i.c u_eoi then err i `Unexpected_eoi;
+    if Int_u.equal i.c u_nl
+    then (i.line <- Int_u.succ i.line; i.col <- Int_u.one ())
+    else i.col <- Int_u.succ i.col;
+    i.c <- Int_u.of_int ((i.uchar [@zero_alloc assume]) i.i);
     if not (is_char i.c) then raise Malformed;
-    if i.cr && i.c = u_nl then i.c <- (i.uchar [@zero_alloc assume]) i.i;
-    if i.c = u_cr then (i.cr <- true; i.c <- u_nl) else i.cr <- false
+    if i.cr && Int_u.equal i.c u_nl then i.c <- Int_u.of_int ((i.uchar [@zero_alloc assume]) i.i);
+    if Int_u.equal i.c u_cr then (i.cr <- true; i.c <- u_nl) else i.cr <- false
 
   let nextc_eof i = try nextc i with End_of_file -> i.c <- u_eoi
   let[@zero_alloc opt] skip_white i = while (is_white i.c) do nextc i done
   let skip_white_eof i = while (is_white i.c) do nextc_eof i done
-  let[@zero_alloc opt] accept i c = if i.c = c then nextc i else err_expected_chars i [ c ]
+  let[@zero_alloc opt] accept i c = if Int_u.equal i.c c then nextc i else err_expected_chars i [ Int_u.to_int c ]
 
   let clear_ident i = Buffer.clear i.ident
   let clear_data i = Buffer.clear i.data
@@ -449,9 +467,9 @@ struct
   let addc_data i c = Buffer.add_uchar i.data c
 
   let addc_data_strip i c =
-    if is_white c then i.last_white <- true else
+    if is_white (Int_u.of_int c) then i.last_white <- true else
       begin
-        if i.last_white && Buffer.length i.data <> 0 then addc_data i u_space;
+        if i.last_white && Buffer.length i.data <> 0 then addc_data i (Int_u.to_int u_space);
         i.last_white <- false;
         addc_data i c
       end
@@ -469,24 +487,24 @@ struct
     with Not_found -> external_ prefix, local
 
   let find_encoding i =                                    (* Encoding mess. *)
-    let reset uchar i = i.uchar <- uchar; i.col <- 0; nextc i in
+    let reset uchar i = i.uchar <- uchar; i.col <- Int_u.zero (); nextc i in
     match i.enc with
     | None ->                                 (* User doesn't know encoding. *)
       begin match nextc i; i.c with
-        | 0xFE ->                                           (* UTF-16BE BOM. *)
-          nextc i; if i.c <> 0xFF then err i `Malformed_char_stream;
+        | c when Int_u.equal c (Int_u.of_int 0xFE) ->     (* UTF-16BE BOM. *)
+          nextc i; if not (Int_u.equal i.c (Int_u.of_int 0xFF)) then err i `Malformed_char_stream;
           reset uchar_utf16be i;
           true
-        | 0xFF ->                                           (* UTF-16LE BOM. *)
-          nextc i; if i.c <> 0xFE then err i `Malformed_char_stream;
+        | c when Int_u.equal c (Int_u.of_int 0xFF) ->     (* UTF-16LE BOM. *)
+          nextc i; if not (Int_u.equal i.c (Int_u.of_int 0xFE)) then err i `Malformed_char_stream;
           reset uchar_utf16le i;
           true
-        | 0xEF ->                                              (* UTF-8 BOM. *)
-          nextc i; if i.c <> 0xBB then err i `Malformed_char_stream;
-          nextc i; if i.c <> 0xBF then err i `Malformed_char_stream;
+        | c when Int_u.equal c (Int_u.of_int 0xEF) ->        (* UTF-8 BOM. *)
+          nextc i; if not (Int_u.equal i.c (Int_u.of_int 0xBB)) then err i `Malformed_char_stream;
+          nextc i; if not (Int_u.equal i.c (Int_u.of_int 0xBF)) then err i `Malformed_char_stream;
           reset uchar_utf8 i;
           true
-        | 0x3C | _ ->                    (* UTF-8 or other, try declaration. *)
+        | _ ->                    (* UTF-8 or other, try declaration. *)
           i.uchar <- uchar_utf8;
           false
       end
@@ -496,19 +514,19 @@ struct
         | `ISO_8859_1 -> reset uchar_iso_8859_1 i
         | `ISO_8859_15 -> reset uchar_iso_8859_15 i
         | `UTF_8 ->                                  (* Skip BOM if present. *)
-          reset uchar_utf8 i; if i.c = u_bom then (i.col <- 0; nextc i)
+          reset uchar_utf8 i; if Int_u.equal i.c u_bom then (i.col <- Int_u.zero (); nextc i)
         | `UTF_16 ->                             (* Which UTF-16 ? look BOM. *)
-          let b0 = nextc i; i.c in
-          let b1 = nextc i; i.c in
+          let b0 = Int_u.to_int (nextc i; i.c) in
+          let b1 = Int_u.to_int (nextc i; i.c) in
           begin match b0, b1 with
             | 0xFE, 0xFF -> reset uchar_utf16be i
             | 0xFF, 0xFE -> reset uchar_utf16le i
             | _ -> err i `Malformed_char_stream;
           end
         | `UTF_16BE ->                               (* Skip BOM if present. *)
-          reset uchar_utf16be i; if i.c = u_bom then (i.col <- 0; nextc i)
+          reset uchar_utf16be i; if Int_u.equal i.c u_bom then (i.col <- Int_u.zero (); nextc i)
         | `UTF_16LE ->
-          reset uchar_utf16le i; if i.c = u_bom then (i.col <- 0; nextc i)
+          reset uchar_utf16le i; if Int_u.equal i.c u_bom then (i.col <- Int_u.zero (); nextc i)
       end;
       true                                      (* Ignore xml declaration. *)
 
@@ -517,47 +535,47 @@ struct
     clear_ident i;
     if not (is_name_start_char i.c) then err_illegal_char i i.c else
       begin
-        addc_ident i i.c; nextc i;
-        while is_name_char i.c do addc_ident i i.c; nextc i done;
+        addc_ident i (Int_u.to_int i.c); nextc i;
+        while is_name_char i.c do addc_ident i (Int_u.to_int i.c); nextc i done;
         Buffer.contents i.ident
       end
 
   let p_qname i =                                 (* {QName} (Namespace 1.1) *)
     let n = p_ncname i in
-    if i.c <> u_colon then (String.empty, n) else (nextc i; (n, p_ncname i))
+    if not (Int_u.equal i.c u_colon) then (String.empty, n) else (nextc i; (n, p_ncname i))
 
   let p_charref i =                             (* {CharRef}, '&' was eaten. *)
     let c = ref 0 in
     clear_ident i;
     nextc i;
-    if i.c = u_scolon then err i (`Illegal_char_ref String.empty) else
+    if Int_u.equal i.c u_scolon then err i (`Illegal_char_ref String.empty) else
       begin
         try
-          if i.c = u_x then
+          if Int_u.equal i.c u_x then
             begin
-              addc_ident i i.c;
+              addc_ident i (Int_u.to_int i.c);
               nextc i;
-              while (i.c <> u_scolon) do
-                addc_ident i i.c;
+              while (not (Int_u.equal i.c u_scolon)) do
+                addc_ident i (Int_u.to_int i.c);
                 if not (is_hex_digit i.c) then raise Exit else
-                  c := !c * 16 + (if i.c <= u_9 then i.c - 48 else
-                                  if i.c <= u_F then i.c - 55 else
-                                    i.c - 87);
+                  c := !c * 16 + (if Int_u.compare i.c u_9 <= 0 then Int_u.to_int i.c - 48 else
+                                  if Int_u.compare i.c u_F <= 0 then Int_u.to_int i.c - 55 else
+                                    Int_u.to_int i.c - 87);
                 nextc i;
               done
             end
           else
-            while (i.c <> u_scolon) do
-              addc_ident i i.c;
+            while (not (Int_u.equal i.c u_scolon)) do
+              addc_ident i (Int_u.to_int i.c);
               if not (is_digit i.c) then raise Exit else
-                c := !c * 10 + (i.c - 48);
+                c := !c * 10 + (Int_u.to_int i.c - 48);
               nextc i
             done
         with Exit ->
-          c := -1; while i.c <> u_scolon do addc_ident i i.c; nextc i done
+          c := -1; while not (Int_u.equal i.c u_scolon) do addc_ident i (Int_u.to_int i.c); nextc i done
       end;
     nextc i;
-    if is_char !c then (clear_ident i; addc_ident i !c; Buffer.contents i.ident)
+    if is_char (Int_u.of_int !c) then (clear_ident i; addc_ident i !c; Buffer.contents i.ident)
     else err i (`Illegal_char_ref (Buffer.contents i.ident))
 
   let predefined_entities =
@@ -575,22 +593,21 @@ struct
     | None -> err i (`Unknown_entity_ref ent)
 
   let p_reference i =                                         (* {Reference} *)
-    nextc i; if i.c = u_sharp then p_charref i else p_entity_ref i
+    nextc i; if Int_u.equal i.c u_sharp then p_charref i else p_entity_ref i
 
   let p_attr_value i =                                    (* {S}? {AttValue} *)
     skip_white i;
-    let delim =
-      if i.c = u_quot || i.c = u_apos then i.c else
-        err_expected_chars i [ u_quot; u_apos]
-    in
+    if not (Int_u.equal i.c u_quot || Int_u.equal i.c u_apos) then
+      err_expected_chars i [ Int_u.to_int u_quot; Int_u.to_int u_apos];
+    let delim = i.c in
     nextc i;
     skip_white i;
     clear_data i;
     i.last_white <- true;
-    while (i.c <> delim) do
-      if i.c = u_lt then err_illegal_char i u_lt else
-      if i.c = u_amp then String.iter (addc_data_strip i) (p_reference i)
-      else (addc_data_strip i i.c; nextc i)
+    while (not (Int_u.equal i.c delim)) do
+      if Int_u.equal i.c u_lt then err_illegal_char i u_lt else
+      if Int_u.equal i.c u_amp then String.iter (addc_data i) (p_reference i)
+      else (addc_data_strip i (Int_u.to_int i.c); nextc i)
     done;
     nextc i;
     Buffer.contents i.data
@@ -600,7 +617,7 @@ struct
       if not (is_white i.c) then pre_acc, acc else
         begin
           skip_white i;
-          if i.c = u_slash || i.c = u_gt then pre_acc, acc else
+          if Int_u.equal i.c u_slash || Int_u.equal i.c u_gt then pre_acc, acc else
             begin
               let (prefix, local) as n = p_qname i in
               let v = skip_white i; accept i u_eq; p_attr_value i in
@@ -630,53 +647,53 @@ struct
 
   let p_limit i =                                   (* Parses a markup limit *)
     i.limit <-
-      if i.c = u_eoi then Eoi else
-      if i.c <> u_lt then Text else
+      if Int_u.equal i.c u_eoi then Eoi else
+      if not (Int_u.equal i.c u_lt) then Text else
         begin
           nextc i;
-          if i.c = u_qmark then (nextc i; Pi (p_qname i)) else
-          if i.c = u_slash then
+          if Int_u.equal i.c u_qmark then (nextc i; Pi (p_qname i)) else
+          if Int_u.equal i.c u_slash then
             begin
               nextc i;
               let n = p_qname i in
               skip_white i;
               Etag n
             end
-          else if i.c = u_emark then
+          else if Int_u.equal i.c u_emark then
             begin
               nextc i;
-              if i.c = u_minus then (nextc i; accept i u_minus; Comment) else
-              if i.c = u_D then Dtd else
-              if i.c = u_lbrack then
+              if Int_u.equal i.c u_minus then (nextc i; accept i u_minus; Comment) else
+              if Int_u.equal i.c u_D then Dtd else
+              if Int_u.equal i.c u_lbrack then
                 begin
                   nextc i;
                   clear_ident i;
-                  for k = 1 to 6 do (addc_ident i i.c; nextc i) done;
+                  for k = 1 to 6 do (addc_ident i (Int_u.to_int i.c); nextc i) done;
                   let cdata = Buffer.contents i.ident in
                   if str_eq cdata s_cdata then Cdata else
                     err_expected_seqs i [ s_cdata ] cdata
                 end
               else
-                err i (`Illegal_char_seq (cat (str "<!") (str_of_char i.c)))
+                err i (`Illegal_char_seq (cat (str "<!") (str_of_char (Int_u.to_int i.c))))
             end
           else
             Stag (p_qname i)
         end
 
   let rec skip_comment i =                    (* {Comment}, '<!--' was eaten *)
-    while (i.c <> u_minus) do nextc i done;
+    while (not (Int_u.equal i.c u_minus)) do nextc i done;
     nextc i;
-    if i.c <> u_minus then skip_comment i else
+    if not (Int_u.equal i.c u_minus) then skip_comment i else
       begin
         nextc i;
-        if i.c <> u_gt then err_expected_chars i [ u_gt ];
+        if not (Int_u.equal i.c u_gt) then err_expected_chars i [ Int_u.to_int u_gt ];
         nextc_eof i
       end
 
   let rec skip_pi i =                          (* {PI}, '<?' qname was eaten *)
-    while (i.c <> u_qmark) do nextc i done;
+    while (not (Int_u.equal i.c u_qmark)) do nextc i done;
     nextc i;
-    if i.c <> u_gt then skip_pi i else nextc_eof i
+    if not (Int_u.equal i.c u_gt) then skip_pi i else nextc_eof i
 
   let rec skip_misc i ~allow_xmlpi = match i.limit with          (* {Misc}* *)
     | Pi (p,l) when (str_empty p && str_eq n_xml (String.lowercase l)) ->
@@ -688,35 +705,35 @@ struct
     | _ -> ()
 
   let p_chardata addc i =           (* {CharData}* ({Reference}{Chardata})* *)
-    while (i.c <> u_lt) do
-      if i.c = u_amp then String.iter (addc i) (p_reference i)
-      else if i.c = u_rbrack then
+    while (not (Int_u.equal i.c u_lt)) do
+      if Int_u.equal i.c u_amp then String.iter (addc i) (p_reference i)
+      else if Int_u.equal i.c u_rbrack then
         begin
-          addc i i.c;
+          addc i (Int_u.to_int i.c);
           nextc i;
-          if i.c = u_rbrack then begin
-            addc i i.c;
+          if Int_u.equal i.c u_rbrack then begin
+            addc i (Int_u.to_int i.c);
             nextc i;                                   (* detects ']'*']]>' *)
-            while (i.c = u_rbrack) do addc i i.c; nextc i done;
-            if i.c = u_gt then err i (`Illegal_char_seq (str "]]>"));
+            while (Int_u.equal i.c u_rbrack) do addc i (Int_u.to_int i.c); nextc i done;
+            if Int_u.equal i.c u_gt then err i (`Illegal_char_seq (str "]]>"));
           end
         end
       else
-        (addc i i.c; nextc i)
+        (addc i (Int_u.to_int i.c); nextc i)
     done
 
   let rec p_cdata addc i =                               (* {CData} {CDEnd} *)
     try while (true) do
-        if i.c = u_rbrack then begin
+        if Int_u.equal i.c u_rbrack then begin
           nextc i;
-          while i.c = u_rbrack do
+          while Int_u.equal i.c u_rbrack do
             nextc i;
-            if i.c = u_gt then (nextc i; raise Exit);
-            addc i u_rbrack
+            if Int_u.equal i.c u_gt then (nextc i; raise Exit);
+            addc i (Int_u.to_int u_rbrack)
           done;
-          addc i u_rbrack;
+          addc i (Int_u.to_int u_rbrack);
         end;
-        addc i i.c;
+        addc i (Int_u.to_int i.c);
         nextc i;
       done with Exit -> ()
 
@@ -733,7 +750,7 @@ struct
       if not (str_eq v n_version) then err_expected_seqs i [ n_version ] v;
       p_val_exp i [v_version_1_0; v_version_1_1];
       skip_white i;
-      if i.c <> u_qmark then begin
+      if not (Int_u.equal i.c u_qmark) then begin
         let n = p_ncname i in
         if str_eq n n_encoding then begin
           let enc = String.lowercase (p_val i) in
@@ -752,7 +769,7 @@ struct
               err i (`Unknown_encoding enc)
           end;
           skip_white i;
-          if i.c <> u_qmark then begin
+          if not (Int_u.equal i.c u_qmark) then begin
             let n = p_ncname i in
             if str_eq n n_standalone then p_val_exp i yes_no else
               err_expected_seqs i [ n_standalone; str "?>" ] n
@@ -776,37 +793,37 @@ struct
         let buf = addc_data i in
         let nest = ref 1 in
         clear_data i;
-        buf u_lt; buf u_emark;                             (* add eaten "<!" *)
+        buf (Int_u.to_int u_lt); buf (Int_u.to_int u_emark);  (* add eaten "<!" *)
         while (!nest > 0) do
-          if i.c = u_lt then
+          if Int_u.equal i.c u_lt then
             begin
               nextc i;
-              if i.c <> u_emark then
-                (buf u_lt; incr nest)
+              if not (Int_u.equal i.c u_emark) then
+                (buf (Int_u.to_int u_lt); incr nest)
               else
                 begin
                   nextc i;
-                  if i.c <> u_minus then         (* Carefull with comments ! *)
-                    (buf u_lt; buf u_emark; incr nest)
+                  if not (Int_u.equal i.c u_minus) then         (* Carefull with comments ! *)
+                    (buf (Int_u.to_int u_lt); buf (Int_u.to_int u_emark); incr nest)
                   else
                     begin
                       nextc i;
-                      if i.c <> u_minus then
-                        (buf u_lt; buf u_emark; buf u_minus; incr nest)
+                      if not (Int_u.equal i.c u_minus) then
+                        (buf (Int_u.to_int u_lt); buf (Int_u.to_int u_emark); buf (Int_u.to_int u_minus); incr nest)
                       else
                         (nextc i; skip_comment i)
                     end
                 end
             end
-          else if i.c = u_quot || i.c = u_apos then
+          else if Int_u.equal i.c u_quot || Int_u.equal i.c u_apos then
             begin
-              let c = i.c in
+              let c = Int_u.to_int i.c in
               buf c; nextc i;
-              while (i.c <> c) do (buf i.c; nextc i) done;
+              while (Int_u.to_int i.c <> c) do (buf (Int_u.to_int i.c); nextc i) done;
               buf c; nextc i
             end
-          else if i.c = u_gt then (buf u_gt; nextc i; decr nest)
-          else (buf i.c; nextc i)
+          else if Int_u.equal i.c u_gt then (buf (Int_u.to_int u_gt); nextc i; decr nest)
+          else (buf (Int_u.to_int i.c); nextc i)
         done;
         let dtd = Buffer.contents i.data in
         p_limit i;
@@ -843,7 +860,7 @@ struct
 
   let p_el_end_signal i n = match i.scopes with
     | (n', prefixes, strip) :: scopes ->
-      if i.c <> u_gt then err_expected_chars i [ u_gt ];
+      if not (Int_u.equal i.c u_gt) then err_expected_chars i [ Int_u.to_int u_gt ];
       if not (str_eq n n') then err_expected_seqs i [name_str n'] (name_str n);
       i.scopes <- scopes;
       i.stripping <- strip;
@@ -872,8 +889,8 @@ struct
       begin match i.peek with
         | `El_start (n, _) ->                   (* finish to input start el. *)
           skip_white i;
-          if i.c = u_gt then (accept i u_gt; p_limit i) else
-          if i.c = u_slash then
+          if Int_u.equal i.c u_gt then (accept i u_gt; p_limit i) else
+          if Int_u.equal i.c u_slash then
             begin
               let tag = match i.scopes with
                 | (tag, _, _) :: _ -> tag | _ -> assert false
@@ -881,15 +898,15 @@ struct
               (nextc i; i.limit <- Etag tag)
             end
           else
-            err_expected_chars i [ u_slash; u_gt ]
+            err_expected_chars i [ Int_u.to_int u_slash; Int_u.to_int u_gt ]
         | _ -> ()
       end;
       find i
 
   let eoi i =
     try
-      if i.c = u_eoi then true else
-      if i.c <> u_start_doc then false else                (* In a document. *)
+      if Int_u.equal i.c u_eoi then true else
+      if not (Int_u.equal i.c u_start_doc) then false else                (* In a document. *)
       if i.peek <> `El_end then               (* Start of document sequence. *)
         begin
           let ignore_enc = find_encoding i in
@@ -902,10 +919,10 @@ struct
         begin
           nextc_eof i;
           p_limit i;
-          if i.c = u_eoi then true else
+          if Int_u.equal i.c u_eoi then true else
             begin
               skip_misc i ~allow_xmlpi:true;
-              if i.c = u_eoi then true else
+              if Int_u.equal i.c u_eoi then true else
                 begin
                   p_xml_decl i ~ignore_enc:false ~ignore_utf16:true;
                   i.peek <- p_dtd_signal i;
@@ -922,7 +939,7 @@ struct
 
   let input i =
     try
-      if i.c = u_end_doc then (i.c <- u_start_doc; i.peek) else
+      if Int_u.equal i.c u_end_doc then (i.c <- u_start_doc; i.peek) else
         let s = peek i in
         i.peek <- p_signal i;
         s
@@ -961,7 +978,7 @@ struct
     | `Dtd d -> d, input_tree ~el ~data i
     | _ -> invalid_arg err_input_doc_tree
 
-  let pos i = i.line, i.col
+  let pos i = Int_u.to_int i.line, Int_u.to_int i.col
 
   (* Output *)
 
@@ -980,7 +997,7 @@ struct
       mutable last_el_start : bool;     (* True if last signal was `El_start *)
       mutable scopes : (name * (string list)) list;
       (* Qualified el. name and bound uris. *)
-      mutable depth : int; }                                 (* Scope depth. *)
+      mutable depth : int#; }                                (* Scope depth. *)
 
   let err_prefix uri = "unbound namespace (" ^ uri ^ ")"
   let err_dtd = "dtd signal not allowed here"
@@ -1008,10 +1025,10 @@ struct
       h
     in
     { decl = decl; outs = outs; outc = outc; nl = nl; indent = indent;
-      last_el_start = false; prefixes = prefixes; scopes = []; depth = -1;
+      last_el_start = false; prefixes = prefixes; scopes = []; depth = Int_u.minus_one ();
       fun_prefix = ns_prefix; }
 
-  let output_depth o = o.depth
+  let output_depth o = Int_u.to_int o.depth
   let outs o s = o.outs s 0 (Std_string.length s)
   let str_utf_8 s = String.to_utf_8 (fun _ s -> s) "" s
   let out_utf_8 o s = ignore (String.to_utf_8 (fun o s -> outs o s; o) o s)
@@ -1073,10 +1090,10 @@ struct
   let output o s =
     let indent o = match o.indent with
       | None -> ()
-      | Some c -> for i = 1 to (o.depth * c) do o.outc ' ' done
+      | Some c -> for i = 1 to (Int_u.to_int (Int_u.mul o.depth (Int_u.of_int c))) do o.outc ' ' done
     in
     let unindent o = match o.indent with None -> () | Some _ -> o.outc '\n' in
-    if o.depth = -1 then
+    if Int_u.equal o.depth (Int_u.minus_one ()) then
       begin match s with
         | `Dtd d ->
           if o.decl then outs o "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
@@ -1084,7 +1101,7 @@ struct
             | Some dtd -> out_utf_8 o dtd; o.outc '\n'
             | None -> ()
           end;
-          o.depth <- 0
+          o.depth <- Int_u.zero ()
         | `Data _ -> invalid_arg err_data
         | `El_start _ -> invalid_arg err_el_start
         | `El_end -> invalid_arg err_el_end
@@ -1098,12 +1115,12 @@ struct
           let qn = prefix_name o n in
           o.outc '<'; out_qname o qn; List.iter (out_attribute o) atts;
           o.scopes <- (qn, uris) :: o.scopes;
-          o.depth <- o.depth + 1;
+          o.depth <- Int_u.succ o.depth;
           o.last_el_start <- true
         | `El_end ->
           begin match o.scopes with
             | (n, uris) :: scopes' ->
-              o.depth <- o.depth - 1;
+              o.depth <- Int_u.pred o.depth;
               if o.last_el_start then outs o "/>" else
                 begin
                   indent o;
@@ -1112,7 +1129,7 @@ struct
               o.scopes <- scopes';
               List.iter (Ht.remove o.prefixes) uris;
               o.last_el_start <- false;
-              if o.depth = 0 then (if o.nl then o.outc '\n'; o.depth <- -1;)
+              if Int_u.equal o.depth (Int_u.zero ()) then (if o.nl then o.outc '\n'; o.depth <- Int_u.minus_one ();)
               else unindent o
             | [] -> invalid_arg err_el_end
           end
